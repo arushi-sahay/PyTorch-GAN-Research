@@ -136,6 +136,12 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt
 
 Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 
+if os.path.exists("generator.pth"):
+    generator.load_state_dict(torch.load("generator.pth"))
+    discriminator.load_state_dict(torch.load("discriminator.pth"))
+    print("✅ Models loaded — resuming training.")
+
+
 # ----------
 #  Training
 # ----------
@@ -190,3 +196,6 @@ for epoch in range(opt.n_epochs):
         batches_done = epoch * len(dataloader) + i
         if batches_done % opt.sample_interval == 0:
             save_image(gen_imgs.data[:25], "images/%d.png" % batches_done, nrow=5, normalize=True)
+        # Save model checkpoints
+        torch.save(generator.state_dict(), "generator.pth")
+        torch.save(discriminator.state_dict(), "discriminator.pth")
