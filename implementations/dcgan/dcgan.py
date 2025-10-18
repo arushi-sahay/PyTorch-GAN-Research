@@ -95,7 +95,6 @@ class Discriminator(nn.Module):
         out = self.model(img)
         out = out.view(out.shape[0], -1)
         validity = self.adv_layer(out)
-
         return validity
 
 
@@ -136,22 +135,33 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt
 
 Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 
-if os.path.exists("generator.pth"):
-    generator.load_state_dict(torch.load("generator.pth"))
-    discriminator.load_state_dict(torch.load("discriminator.pth"))
-    print("✅ Models loaded — resuming training.")
-
+# ----------
+#  LOAD CHECKPOINT
+# ----------
+# <-- ADDED SECTION
+start_epoch = 0
+checkpoint_path = "training_checkpoint.pth"
+if os.path.exists(checkpoint_path):
+    checkpoint = torch.load(checkpoint_path)
+    generator.load_state_dict(checkpoint['generator_state_dict'])
+    discriminator.load_state_dict(checkpoint['discriminator_state_dict'])
+    optimizer_G.load_state_dict(checkpoint['optimizer_G_state_dict'])
+    optimizer_D.load_state_dict(checkpoint['optimizer_D_state_dict'])
+    start_epoch = checkpoint['epoch'] + 1 # Start from the next epoch
+    print(f"✅ Models and optimizers loaded. Resuming training from epoch {start_epoch}.")
+# <-- END ADDED SECTION
 
 # ----------
 #  Training
 # ----------
 
-for epoch in range(opt.n_epochs):
+# <-- MODIFIED LINE (added start_epoch)
+for epoch in range(start_epoch, opt.n_epochs):
     for i, (imgs, _) in enumerate(dataloader):
 
         # Adversarial ground truths
-        valid = Variable(Tensor(imgs.shape[0], 1).fill_(1.0), requires_grad=False)
-        fake = Variable(Tensor(imgs.shape[0], 1).fill_(0.0), requires_grad=False)
+        valid = Variable(Tensor(imgs.size(0), 1).fill_(1.0), requires_grad=False)
+        fake = Variable(Tensor(imgs.size(0), 1).fill_(0.0), requires_grad=False)
 
         # Configure input
         real_imgs = Variable(imgs.type(Tensor))
@@ -196,6 +206,15 @@ for epoch in range(opt.n_epochs):
         batches_done = epoch * len(dataloader) + i
         if batches_done % opt.sample_interval == 0:
             save_image(gen_imgs.data[:25], "images/%d.png" % batches_done, nrow=5, normalize=True)
-        # Save model checkpoints
-        torch.save(generator.state_dict(), "generator.pth")
-        torch.save(discriminator.state_dict(), "discriminator.pth")
+    
+    # <-- ADDED CHECKPOINT SAVING AT THE END OF EACH EPOCH
+    # Save model checkpoints
+    checkpoint = {
+        'epoch': epoch,
+        'generator_state_dict': generator.state_dict(),
+        'discriminator_state_dict': discriminator.state_dict(),
+        'optimizer_G_state_dict': optimizer_G.state_dict(),
+        'optimizer_D_state_dict': optimizer_D.state_dict(),
+    }
+    torch.save(checkpoint, checkpoint_path)
+    print(f"--- ✅ Checkpoint saved for epoch {epoch} ---")
